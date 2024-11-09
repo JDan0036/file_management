@@ -1,10 +1,12 @@
 <template>
-  <div>
-    <h2>Upload a File</h2>
+  <div class="upload-container">
     <form @submit.prevent="uploadFile">
-      <input type="file" @change="onFileChange" />
-      <button type="submit">Upload</button>
+      <label class="upload-button">
+        <input type="file" @change="onFileChange" hidden />
+        <span>+ New</span>
+      </label>
     </form>
+    <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
   </div>
 </template>
 
@@ -16,15 +18,19 @@ export default {
   data() {
     return {
       selectedFile: null,
+      errorMessage: '',
     };
   },
   methods: {
     onFileChange(event) {
       this.selectedFile = event.target.files[0];
+      if (this.selectedFile) {
+        this.uploadFile(); // Trigger upload immediately after selecting a file
+      }
     },
     uploadFile() {
       if (!this.selectedFile) {
-        alert('Please select a file.');
+        this.errorMessage = 'Please select a file.';
         return;
       }
 
@@ -37,13 +43,12 @@ export default {
         },
       })
       .then(() => {
-        alert('File uploaded successfully!');
-        this.selectedFile = null; // Clear file selection after upload
-
-        // Emit event to notify parent component
         this.$emit('file-uploaded');
+        this.selectedFile = null;
+        this.errorMessage = '';
       })
       .catch(error => {
+        this.errorMessage = 'Error uploading file: ' + error.message;
         console.error('Error uploading file:', error);
       });
     },
@@ -52,7 +57,28 @@ export default {
 </script>
 
 <style scoped>
-button {
-  margin-top: 10px;
+.upload-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.upload-button {
+  background-color: #4285f4;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  font-weight: bold;
+}
+
+.upload-button:hover {
+  background-color: #357ae8;
+}
+
+.error {
+  color: red;
 }
 </style>
