@@ -1,8 +1,8 @@
 <template>
   <div id="app">
     <h1>File Management System</h1>
-    <FileForm />
-    <FileList />
+    <FileForm @file-uploaded="refreshFileList" />
+    <FileList :refreshFlag="refreshFlag" />
   </div>
 </template>
 
@@ -16,11 +16,20 @@ export default {
     FileList,
     FileForm,
   },
+  data() {
+    return {
+      refreshFlag: false,
+    };
+  },
+  methods: {
+    refreshFileList() {
+      this.refreshFlag = !this.refreshFlag;
+    },
+  },
 };
 </script>
 
 <style>
-/* Add global styling */
 #app {
   font-family: Arial, sans-serif;
   text-align: center;

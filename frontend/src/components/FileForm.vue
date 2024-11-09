@@ -39,6 +39,9 @@ export default {
       .then(() => {
         alert('File uploaded successfully!');
         this.selectedFile = null; // Clear file selection after upload
+
+        // Emit event to notify parent component
+        this.$emit('file-uploaded');
       })
       .catch(error => {
         console.error('Error uploading file:', error);
@@ -49,7 +52,6 @@ export default {
 </script>
 
 <style scoped>
-/* Add basic styling */
 button {
   margin-top: 10px;
 }
