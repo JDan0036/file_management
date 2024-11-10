@@ -24,16 +24,38 @@ router.post('/', upload.single('file'), (req, res) => {
   const { folderId } = req.body; // Folder ID passed from the frontend
   const createdAt = new Date().toISOString();
 
-  db.run(
-    `INSERT INTO files (name, filePath, createdAt, folderId) VALUES (?, ?, ?, ?)`,
-    [originalname, filePath, createdAt, folderId || null], // Ensure folderId is null if not provided
-    function (err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
+  if (folderId) {
+    // Get the path of the parent folder
+    db.get(`SELECT path FROM folders WHERE id = ?`, [folderId], (err, folder) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!folder) return res.status(404).json({ error: 'Folder not found' });
+
+      // Set the full path for the file based on the folder's path
+      const fullPath = path.join(folder.path, originalname);
+
+      // Insert the file into the database with the full path
+      db.run(
+        `INSERT INTO files (name, filePath, createdAt, folderId, path) VALUES (?, ?, ?, ?, ?)`,
+        [originalname, filePath, createdAt, folderId, fullPath],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          res.status(201).json({ id: this.lastID, name: originalname, path: fullPath });
+        }
+      );
+    });
+  } else {
+    // If no folderId (root level), set the path as /root/filename
+    const fullPath = path.join('/root', originalname);
+
+    db.run(
+      `INSERT INTO files (name, filePath, createdAt, folderId, path) VALUES (?, ?, ?, ?, ?)`,
+      [originalname, filePath, createdAt, null, fullPath],
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(201).json({ id: this.lastID, name: originalname, path: fullPath });
       }
-      res.status(201).json({ id: this.lastID, name: originalname });
-    }
-  );
+    );
+  }
 });
 
 // Read (List all files)
