@@ -11,7 +11,6 @@
         <button class="sidebar-button" @click="showNewModal = true">+ New</button>
         <nav class="sidebar-nav">
           <button class="sidebar-link" @click="navigateToRoot">My Files</button>
-          <button class="sidebar-link">Trash</button>
         </nav>
       </aside>
 

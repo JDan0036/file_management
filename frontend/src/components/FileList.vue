@@ -12,6 +12,7 @@
       <table>
         <thead>
           <tr>
+            <th>Folder Type</th>
             <th>Name</th>
             <th>Location</th>
             <th>Uploaded At</th>
@@ -20,7 +21,8 @@
         </thead>
         <tbody>
           <!-- Folder rows -->
-          <tr v-for="(folder, folderIndex) in folders" :key="'folder-' + folder.id" class="folder-row">
+          <tr v-for="(folder, folderIndex) in folders" :key="'folder-' + folder.id" class="folder-row" @click="navigate(folder.id)">
+            <td class="folder-logo"><img :src="require('@/assets/folder.png')" alt="Folder icon" class="folder-logo-image"/></td>
             <td @click="navigate(folder.id)"><i class="fas fa-folder"></i> {{ folder.name }}</td>
             <td>{{ getLocation(folder) }}</td>
             <td>{{ formatDate(folder.createdAt) }}</td>
@@ -37,6 +39,7 @@
           
           <!-- File rows -->
           <tr v-for="(file, fileIndex) in files" :key="'file-' + file.id" class="file-row">
+            <td class="file-logo"><img :src="require('@/assets/file.png')" alt="File icon" class="file-logo-image"/></td> 
             <td>{{ file.name }}</td>
             <td>{{ getLocation(file) }}</td>
             <td>{{ formatDate(file.createdAt) }}</td>
@@ -54,6 +57,15 @@
       </table>
     </div>
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+
+    <RenameModal
+      v-if="renameModalVisible"
+      :visible="renameModalVisible"
+      :itemType="renameItemType"
+      :initialName="renameItemName"
+      @close="renameModalVisible = false"
+      @rename="handleRename"
+    />
     <InfoModal
       v-if="infoModalVisible"
       :visible="infoModalVisible"
@@ -67,11 +79,13 @@
 <script>
 import InfoModal from './InfoModal.vue';
 import apiClient from '../services/api';
+import RenameModal from './RenameModal.vue';
 
 export default {
   name: 'FileList',
   components: {
     InfoModal,
+    RenameModal,
   },
   props: {
     refreshFlag: Boolean,
@@ -86,7 +100,11 @@ export default {
       folderHistory: [], // History stack to keep track of previous folders
       modalTitle: '',
       modalContent: {}, // Content for the info modal
-      infoModalVisible: false, 
+      infoModalVisible: false,
+      renameItemType: '', // 'Folder' or 'File'
+      renameItemName: '', 
+      renameItemId: null, // ID of the item being renamed
+      renameModalVisible: false, 
     };
   },
   methods: {
@@ -141,18 +159,10 @@ export default {
       this.activeMenu = null;
     },
     renameFolder(folder) {
-      const newName = prompt("Enter new folder name:", folder.name);
-      if (newName && newName !== folder.name) {
-        apiClient.put(`/folders/${folder.id}`, { newName })
-          .then(() => {
-            folder.name = newName; // Update locally after the server confirms success
-            this.fetchFoldersAndFiles(); // Refresh the list to show updated paths
-          })
-          .catch(error => {
-            this.errorMessage = 'Error renaming folder: ' + error.message;
-          });
-      }
-      this.activeMenu = null;
+      this.renameItemType = 'Folder';
+      this.renameItemName = folder.name;
+      this.renameItemId = folder.id;
+      this.renameModalVisible = true;
     },
     showFileInfo(file) {
       this.modalTitle = 'File Information';
@@ -165,17 +175,31 @@ export default {
       this.activeMenu = null;
     },
     renameFile(file) {
-      const newName = prompt("Enter new file name:", file.name);
-      if (newName && newName !== file.name) {
-        apiClient.put(`/files/${file.id}`, { newName })
-          .then(() => {
-            file.name = newName; // Update locally after the server confirms success
-          })
-          .catch(error => {
-            this.errorMessage = 'Error renaming file: ' + error.message;
-          });
-      }
-      this.activeMenu = null;
+      this.renameItemType = 'File';
+      this.renameItemName = file.name;
+      this.renameItemId = file.id;
+      this.renameModalVisible = true;
+    },
+    handleRename(newName) {
+      const id = this.renameItemId;
+      const url = this.renameItemType === 'Folder' ? `/folders/${id}` : `/files/${id}`;
+
+      apiClient
+        .put(url, { newName })
+        .then(() => {
+          if (this.renameItemType === 'Folder') {
+            const folder = this.folders.find(f => f.id === id);
+            if (folder) folder.name = newName;
+          } else {
+            const file = this.files.find(f => f.id === id);
+            if (file) file.name = newName;
+          }
+          this.fetchFoldersAndFiles(); // Refresh the list to show updated names
+          this.renameModalVisible = false; // Close the modal
+        })
+        .catch(error => {
+          this.errorMessage = `Error renaming ${this.renameItemType.toLowerCase()}: ` + error.message;
+        });
     },
     downloadFile(file) {
       apiClient.get(`/files/download/${file.id}`, {
@@ -295,10 +319,32 @@ export default {
   font-weight: bold;
 }
 
-/* .folder-row,
+.file-row, .folder-row {
+  transition: background-color 0.3s ease, transform 0.1s ease;
+}
+
+.folder-row {
+  cursor: pointer;
+}
+
 .file-row {
-  border-radius: 5px;
-} */
+  cursor: default;
+}
+
+/* Hover effect for all rows */
+.folder-row:hover, .file-row:hover {
+  background-color: #f9f9f9; /* Light gray background on hover */
+}
+
+/* Active click effect for folder rows */
+.folder-row:active {
+  background-color: #e0e0e0; /* Darker gray background on click for folders */
+}
+
+/* File row hover effect mimicking the action button style */
+.file-row:hover {
+  background-color: #f5f5f5; /* Subtle gray hover for file rows */
+}
 
 .actions {
   position: relative;
@@ -311,10 +357,20 @@ export default {
   color: #666;
   font-size: 18px;
   cursor: pointer;
+  padding: 8px;
+  border-radius: 5px;
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.1s ease;
 }
 
 .action-button:hover {
-  color: #333;
+  background-color: #f0f0f0; /* Light gray background on hover */
+  color: #333; /* Darker text on hover */
+}
+
+.action-button:active {
+  background-color: #d0d0d0; /* Darker gray on click */
+  color: #000; /* Even darker text on click */
+  transform: scale(0.95); /* Slightly shrink button on click for visual feedback */
 }
 
 /* Popup Menu Styling */
@@ -375,6 +431,28 @@ export default {
 
 .back-button:hover {
   background-color: #b3b3b3; /* Darker grey for hover effect */
+}
+
+.folder-logo-image {
+  width: 40px; 
+  height: auto;
+  aspect-ratio: 1 / 1; /* Maintain a 1:1 aspect ratio */
+  object-fit: contain; /* Ensure the image fits within the container without distortion */
+}
+
+.folder-logo {
+  align-items: center; 
+}
+
+.file-logo-image {
+  width: 40px; 
+  height: auto;
+  aspect-ratio: 1 / 1; /* Maintain a 1:1 aspect ratio */
+  object-fit: contain; /* Ensure the image fits within the container without distortion */
+}
+
+.file-logo {
+  align-items: center; 
 }
 
 </style>
