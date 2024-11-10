@@ -54,14 +54,25 @@
       </table>
     </div>
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+    <InfoModal
+      v-if="infoModalVisible"
+      :visible="infoModalVisible"
+      :title="modalTitle"
+      :content="modalContent"
+      @close="infoModalVisible = false"
+    />
   </div>
 </template>
 
 <script>
+import InfoModal from './InfoModal.vue';
 import apiClient from '../services/api';
 
 export default {
   name: 'FileList',
+  components: {
+    InfoModal,
+  },
   props: {
     refreshFlag: Boolean,
     currentFolderId: Number,
@@ -73,6 +84,9 @@ export default {
       errorMessage: '',
       activeMenu: null,
       folderHistory: [], // History stack to keep track of previous folders
+      modalTitle: '',
+      modalContent: {}, // Content for the info modal
+      infoModalVisible: false, 
     };
   },
   methods: {
@@ -117,7 +131,13 @@ export default {
       }
     },
     showFolderInfo(folder) {
-      alert(`Folder Information:\nName: ${folder.name}\nCreated At: ${this.formatDate(folder.createdAt)}`);
+      this.modalTitle = 'Folder Information';
+      this.modalContent = {
+        Name: folder.name,
+        'Created At': this.formatDate(folder.createdAt),
+        Location: this.getLocation(folder),
+      };
+      this.infoModalVisible = true;
       this.activeMenu = null;
     },
     renameFolder(folder) {
@@ -135,7 +155,13 @@ export default {
       this.activeMenu = null;
     },
     showFileInfo(file) {
-      alert(`File Information:\nName: ${file.name}\nLocation: ${this.getLocation(file)}`);
+      this.modalTitle = 'File Information';
+      this.modalContent = {
+        Name: file.name,
+        'Uploaded At': this.formatDate(file.createdAt),
+        Location: this.getLocation(file),
+      };
+      this.infoModalVisible = true;
       this.activeMenu = null;
     },
     renameFile(file) {
