@@ -7,6 +7,8 @@ This project is a web-based file management system that allows users to navigate
 - [Setup Instructions](#setup-instructions)
 - [Usage](#usage)
 - [API Endpoints](#api-endpoints)
+- [CRUD Operations for Folders](#crud-operations-for-folders)
+- [CRUD Operations for Files](#crud-operations-for-files)
 - [Styling Notes](#styling-notes)
 - [Future Improvements](#future-improvements)
 
@@ -48,8 +50,8 @@ FILE_MANAGEMENT/
 │   ├── files.js                # File-related API routes
 │   └── folders.js              # Folder-related API routes
 ├── uploads/                    # Directory for uploaded files
-│   └── database.db             # SQLite database file
-├── your-database.db            # Another SQLite database file (possibly a backup or test database)
+│   └── testing-file            # Testing purpose to check for uploading files
+├── your-database.db            # SQLite database file
 ├── .gitignore                  # Git ignore file for the backend
 ├── index.js                    # Main entry point for the Express server
 ├── package.json                # Package dependencies for backend
@@ -236,3 +238,6 @@ The interface provides smooth animations and user-friendly feedback:
 - **Pagination**: Implement pagination for large directories to optimize performance.
 - **File Previews**: Add file previews for supported types (e.g., images, PDFs).
 
+## GitHub Repo
+You can click this link to see the GitHub repo that I worked on below: </br>
+https://github.com/JDan0036/file_management 
