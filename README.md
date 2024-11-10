@@ -80,7 +80,11 @@ FILE_MANAGEMENT/
    npm install
    ```
 
-3. **Configure the SQLite database**: The database schema is automatically created on server startup based on `config/database.js`.
+3. **Configure the SQLite database**: First download SQLite3
+   ```bash
+   npm install sqlite3
+   ```
+   The database schema is automatically created on server startup based on `config/database.js`.
 
 4. **Run the backend server**:
    ```bash
