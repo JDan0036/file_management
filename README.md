@@ -84,9 +84,10 @@ FILE_MANAGEMENT/
 
 4. **Run the backend server**:
    ```bash
-   node index.js
+   nodemon index.js
    ```
    The backend server will start at `http://localhost:3000`.
+   If Error gotten, please follow this instructions for downloading nodemon: </br> "https://stackoverflow.com/questions/40359590/nodemon-command-is-not-recognized-in-terminal-for-node-js-server/53711051#53711051" 
 
 ### 2. Frontend Setup
 

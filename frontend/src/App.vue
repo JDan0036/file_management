@@ -32,6 +32,13 @@
       </div>
     </div>
 
+    <!-- Create Folder Modal -->
+    <CreateFolderModal
+      v-if="showCreateFolderModal"
+      @close="showCreateFolderModal = false"
+      @create="createFolder"
+    />
+
     <!-- Hidden file input for file upload -->
     <input type="file" ref="fileInput" @change="handleFileUpload" hidden />
   </div>
@@ -39,18 +46,21 @@
 
 <script>
 import FileList from './components/FileList.vue';
+import CreateFolderModal from './components/CreateFolderModal.vue';
 import apiClient from './services/api';
 
 export default {
   name: 'App',
   components: {
     FileList,
+    CreateFolderModal,
   },
   data() {
     return {
       refreshFlag: false,
       selectedFile: null,
       showNewModal: false,
+      showCreateFolderModal: false, // Controls CreateFolderModal visibility
       errorMessage: '',
       currentFolderId: null, // Track current folder; null means root
     };
@@ -77,10 +87,8 @@ export default {
     },
     // Opens modal to create a folder
     openCreateFolder() {
-      const folderName = prompt("Enter folder name:");
-      if (folderName) {
-        this.createFolder(folderName);
-      }
+      this.showNewModal = false;
+      this.showCreateFolderModal = true;
     },
     // Create folder request to the backend
     createFolder(folderName) {
