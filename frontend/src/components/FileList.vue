@@ -28,8 +28,9 @@
               <button @click.stop="toggleMenu('folder-' + folderIndex)" class="action-button">⋮</button>
               <div v-if="activeMenu === 'folder-' + folderIndex" class="popup-menu">
                 <button @click="showFolderInfo(folder)">Folder Information</button>
-                <button @click="renameFolder(folder)">Rename</button>
-                <button @click="deleteFolder(folder.id)">Delete</button>
+                <button @click="renameFolder(folder)">Rename Folder</button>
+                <button @click="downloadFolder(folder)">Download Folder</button>
+                <button @click="deleteFolder(folder.id)">Delete Folder</button>
               </div>
             </td>
           </tr>
@@ -78,11 +79,14 @@ export default {
     fetchFoldersAndFiles() {
       apiClient.get('/folders')
         .then(response => {
-          const foldersData = response.data || [];
+          const foldersData = response.data.folders || [];
+          const rootFiles = response.data.rootFiles || [];
+          
           this.folders = foldersData.filter(folder => folder.parentId === this.currentFolderId);
-          this.files = foldersData
-            .flatMap(folder => folder.files || [])
-            .filter(file => file.folderId === this.currentFolderId);
+          this.files = this.currentFolderId === null
+            ? rootFiles // Show root files when in the root folder
+            : foldersData.flatMap(folder => folder.files || []).filter(file => file.folderId === this.currentFolderId);
+          
           this.errorMessage = '';
         })
         .catch(error => {
@@ -148,8 +152,39 @@ export default {
       this.activeMenu = null;
     },
     downloadFile(file) {
-      alert(`Downloading ${file.name}...`);
-      this.activeMenu = null;
+      apiClient.get(`/files/download/${file.id}`, {
+        responseType: 'blob', // Ensure the response is treated as a blob
+      })
+      .then((response) => {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', file.name); // Set file name for download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch(error => {
+        this.errorMessage = 'Error downloading file: ' + error.message;
+      });
+    },
+    // Trigger folder download
+    downloadFolder(folder) {
+      apiClient.get(`/folders/download/${folder.id}`, {
+        responseType: 'blob', // Ensure the response is treated as a blob
+      })
+      .then((response) => {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${folder.name}.zip`); // Set folder name as zip for download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch(error => {
+        this.errorMessage = 'Error downloading folder: ' + error.message;
+      });
     },
     deleteFolder(folderId) {
       apiClient.delete(`/folders/${folderId}`).then(() => {

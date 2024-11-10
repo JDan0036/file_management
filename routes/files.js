@@ -25,8 +25,8 @@ router.post('/', upload.single('file'), (req, res) => {
   const createdAt = new Date().toISOString();
 
   db.run(
-    `INSERT INTO files (name, filePath, createdAt, path, folderId) VALUES (?, ?, ?, ?, ?)`,
-    [originalname, filePath, createdAt, path, folderId || null],
+    `INSERT INTO files (name, filePath, createdAt, folderId) VALUES (?, ?, ?, ?)`,
+    [originalname, filePath, createdAt, folderId || null], // Ensure folderId is null if not provided
     function (err) {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -80,5 +80,25 @@ router.put('/:id', (req, res) => {
   });
 });
 
+// Download a file by ID
+router.get('/download/:id', (req, res) => {
+  const { id } = req.params;
+
+  db.get(`SELECT * FROM files WHERE id = ?`, [id], (err, file) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const filePath = file.filePath; // Assume filePath contains the full path to the file
+    res.download(filePath, file.name, (downloadErr) => {
+      if (downloadErr) {
+        res.status(500).json({ error: 'Error downloading file' });
+      }
+    });
+  });
+});
 
 module.exports = router;

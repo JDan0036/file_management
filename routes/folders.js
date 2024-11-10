@@ -2,6 +2,9 @@
 const express = require('express');
 const db = require('../config/database');
 const router = express.Router();
+const archiver = require('archiver');
+const fs = require('fs');
+const path = require('path');
 
 // Create a new folder
 router.post('/', (req, res) => {
@@ -63,16 +66,29 @@ router.get('/', (req, res) => {
           if (err) {
             reject(err);
           } else {
-            let updatedPath = folder.path.replace(new RegExp(`${folder.id}/`, 'g'), '');
-            resolve({ ...folder, path: updatedPath, files });
+            resolve({ ...folder, files });
           }
         });
       });
     });
 
+    // Get files in the root (where folderId is null)
+    const rootFilesPromise = new Promise((resolve, reject) => {
+      db.all(`SELECT * FROM files WHERE folderId IS NULL`, [], (err, rootFiles) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rootFiles);
+        }
+      });
+    });
+
     // Wait for all promises to resolve
-    Promise.all(folderPromises)
-      .then(results => res.json(results))
+    Promise.all([...folderPromises, rootFilesPromise])
+      .then(results => {
+        const rootFiles = results.pop(); // Extract root files from the results
+        res.json({ folders: results, rootFiles }); // Send folders and rootFiles separately
+      })
       .catch(error => res.status(500).json({ error: error.message }));
   });
 });
@@ -127,6 +143,65 @@ router.put('/:id', (req, res) => {
           }
         );
       });
+    });
+  });
+});
+
+// Download a folder as a zip file by ID
+router.get('/download/:id', (req, res) => {
+  const { id } = req.params;
+
+  db.get(`SELECT * FROM folders WHERE id = ?`, [id], (err, folder) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!folder) return res.status(404).json({ error: 'Folder not found' });
+
+    // Create a zip archive for the folder
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    res.attachment(`${folder.name}.zip`);
+
+    archive.on('error', (archiveErr) => {
+      res.status(500).json({ error: archiveErr.message });
+    });
+
+    // Pipe archive data to the response
+    archive.pipe(res);
+
+    // Retrieve all files in this folder and subfolders
+    const fetchFiles = (folderId) => {
+      return new Promise((resolve, reject) => {
+        db.all(`SELECT * FROM files WHERE folderId = ?`, [folderId], (fileErr, files) => {
+          if (fileErr) reject(fileErr);
+
+          db.all(`SELECT * FROM folders WHERE parentId = ?`, [folderId], (subFolderErr, subFolders) => {
+            if (subFolderErr) reject(subFolderErr);
+
+            resolve({ files, subFolders });
+          });
+        });
+      });
+    };
+
+    // Recursive function to add folder contents to the zip
+    const addFolderToArchive = async (folderId, basePath) => {
+      const { files, subFolders } = await fetchFiles(folderId);
+
+      // Add files in the current folder to the archive
+      for (const file of files) {
+        const filePath = path.resolve(file.filePath);
+        archive.file(filePath, { name: path.join(basePath, file.name) });
+      }
+
+      // Recursively add subfolders
+      for (const subFolder of subFolders) {
+        await addFolderToArchive(subFolder.id, path.join(basePath, subFolder.name));
+      }
+    };
+
+    // Start adding files and folders
+    addFolderToArchive(id, folder.name).then(() => {
+      archive.finalize();
+    }).catch((archiveErr) => {
+      res.status(500).json({ error: archiveErr.message });
     });
   });
 });
