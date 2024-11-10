@@ -1,35 +1,57 @@
 <template>
   <div class="file-list-container">
-    <!-- Check if there are files; if not, show a message -->
-    <div v-if="files.length === 0" class="no-files-message">
-      There are no files currently in the database. Please add files.
+    <div v-if="currentFolderId !== null">
+      <!-- Back Button to go to the previous directory -->
+      <button class="back-button" @click="navigateToPrevious">⬅ Back</button>
     </div>
-    <table v-else class="file-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Location</th>
-          <th></th> <!-- Placeholder for action icons -->
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(file, index) in sortedFiles" :key="file.id">
-          <td>{{ file.name }}</td>
-          <td>Location/Folder</td> <!-- Placeholder, replace with actual location if available -->
-          <td class="actions">
-            <button @click="toggleMenu(index)" class="action-button">⋮</button>
-            
-            <!-- Pop-up menu that appears when the three dots are clicked -->
-            <div v-if="activeMenu === index" class="popup-menu">
-              <button @click="showFileInfo(file)">File Information</button>
-              <button @click="renameFile(file)">Rename</button>
-              <button @click="downloadFile(file)">Download</button>
-              <button @click="deleteFile(file.id)">Delete</button>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+
+    <div v-if="!folders.length && !files.length" class="no-files-message">
+      There are no files or folders here.
+    </div>
+    <div v-else class="file-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Location</th>
+            <th>Uploaded At</th>
+            <th></th> <!-- Placeholder for action icons -->
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Folder rows -->
+          <tr v-for="(folder, folderIndex) in folders" :key="'folder-' + folder.id" class="folder-row">
+            <td @click="navigate(folder.id)"><i class="fas fa-folder"></i> {{ folder.name }}</td>
+            <td>{{ getLocation(folder) }}</td>
+            <td>{{ formatDate(folder.createdAt) }}</td>
+            <td class="actions">
+              <button @click.stop="toggleMenu('folder-' + folderIndex)" class="action-button">⋮</button>
+              <div v-if="activeMenu === 'folder-' + folderIndex" class="popup-menu">
+                <button @click="showFolderInfo(folder)">Folder Information</button>
+                <button @click="renameFolder(folder)">Rename</button>
+                <button @click="deleteFolder(folder.id)">Delete</button>
+              </div>
+            </td>
+          </tr>
+          
+          <!-- File rows -->
+          <tr v-for="(file, fileIndex) in files" :key="'file-' + file.id" class="file-row">
+            <td>{{ file.name }}</td>
+            <td>{{ getLocation(file) }}</td>
+            <td>{{ formatDate(file.createdAt) }}</td>
+            <td class="actions">
+              <button @click.stop="toggleMenu('file-' + fileIndex)" class="action-button">⋮</button>
+              <div v-if="activeMenu === 'file-' + fileIndex" class="popup-menu">
+                <button @click="showFileInfo(file)">File Information</button>
+                <button @click="renameFile(file)">Rename</button>
+                <button @click="downloadFile(file)">Download</button>
+                <button @click="deleteFile(file.id)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
   </div>
 </template>
@@ -41,58 +63,87 @@ export default {
   name: 'FileList',
   props: {
     refreshFlag: Boolean,
+    currentFolderId: Number,
   },
   data() {
     return {
+      folders: [],
       files: [],
-      sortOption: 'name',
       errorMessage: '',
-      activeMenu: null, // Tracks which menu is active
+      activeMenu: null,
+      folderHistory: [], // History stack to keep track of previous folders
     };
   },
-  computed: {
-    sortedFiles() {
-      return this.files.slice().sort((a, b) => {
-        if (this.sortOption === 'name') {
-          return a.name.localeCompare(b.name);
-        } else if (this.sortOption === 'date') {
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        }
-      });
-    },
-  },
   methods: {
-    fetchFiles() {
-      apiClient.get('/files')
+    fetchFoldersAndFiles() {
+      apiClient.get('/folders')
         .then(response => {
-          this.files = response.data;
+          const foldersData = response.data || [];
+          this.folders = foldersData.filter(folder => folder.parentId === this.currentFolderId);
+          this.files = foldersData
+            .flatMap(folder => folder.files || [])
+            .filter(file => file.folderId === this.currentFolderId);
           this.errorMessage = '';
         })
         .catch(error => {
-          this.errorMessage = 'Error fetching files: ' + error.message;
-          console.error('Error fetching files:', error);
+          this.errorMessage = 'Error fetching data: ' + error.message;
         });
     },
-    deleteFile(id) {
-      apiClient.delete(`/files/${id}`)
-        .then(() => {
-          this.files = this.files.filter(file => file.id !== id);
-        })
-        .catch(error => {
-          this.errorMessage = 'Error deleting file: ' + error.message;
-          console.error('Error deleting file:', error);
-        });
+    navigate(folderId) {
+      // Add the current folder to history before navigating
+      if (this.currentFolderId !== null) {
+        this.folderHistory.push(this.currentFolderId);
+      }
+      this.$emit('navigate', folderId); // Emit event to navigate to folder
     },
-    toggleMenu(index) {
-      this.activeMenu = this.activeMenu === index ? null : index;
+    navigateToPrevious() {
+      // Pop the last folder ID from history and navigate there
+      const previousFolderId = this.folderHistory.pop();
+      this.$emit('navigate', previousFolderId);
+      if (previousFolderId === null){
+        this.$emit('navigate', null)
+      }
+    },
+    toggleMenu(menuId) {
+      this.activeMenu = this.activeMenu === menuId ? null : menuId;
+    },
+    handleClickOutside(event) {
+      if (!event.target.closest('.action-button') && !event.target.closest('.popup-menu')) {
+        this.activeMenu = null;
+      }
+    },
+    showFolderInfo(folder) {
+      alert(`Folder Information:\nName: ${folder.name}\nCreated At: ${this.formatDate(folder.createdAt)}`);
+      this.activeMenu = null;
+    },
+    renameFolder(folder) {
+      const newName = prompt("Enter new folder name:", folder.name);
+      if (newName && newName !== folder.name) {
+        apiClient.put(`/folders/${folder.id}`, { newName })
+          .then(() => {
+            folder.name = newName; // Update locally after the server confirms success
+            this.fetchFoldersAndFiles(); // Refresh the list to show updated paths
+          })
+          .catch(error => {
+            this.errorMessage = 'Error renaming folder: ' + error.message;
+          });
+      }
+      this.activeMenu = null;
     },
     showFileInfo(file) {
-      alert(`File Information:\nName: ${file.name}\nLocation: Location/Folder`);
+      alert(`File Information:\nName: ${file.name}\nLocation: ${this.getLocation(file)}`);
+      this.activeMenu = null;
     },
     renameFile(file) {
-      const newName = prompt('Enter new file name:', file.name);
-      if (newName) {
-        file.name = newName;
+      const newName = prompt("Enter new file name:", file.name);
+      if (newName && newName !== file.name) {
+        apiClient.put(`/files/${file.id}`, { newName })
+          .then(() => {
+            file.name = newName; // Update locally after the server confirms success
+          })
+          .catch(error => {
+            this.errorMessage = 'Error renaming file: ' + error.message;
+          });
       }
       this.activeMenu = null;
     },
@@ -100,14 +151,52 @@ export default {
       alert(`Downloading ${file.name}...`);
       this.activeMenu = null;
     },
+    deleteFolder(folderId) {
+      apiClient.delete(`/folders/${folderId}`).then(() => {
+        this.folders = this.folders.filter(f => f.id !== folderId);
+        this.files = this.files.filter(file => file.folderId !== folderId);
+      }).catch(error => {
+        this.errorMessage = 'Error deleting folder: ' + error.message;
+      });
+    },
+    deleteFile(fileId) {
+      apiClient.delete(`/files/${fileId}`).then(() => {
+        this.files = this.files.filter(file => file.id !== fileId);
+      }).catch(error => {
+        this.errorMessage = 'Error deleting file: ' + error.message;
+      });
+    },
+    formatDate(dateString) {
+      const options = {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      };
+      return new Date(dateString).toLocaleDateString('en-GB', options).replace(',', '');
+    },
+    getLocation(folder) {
+      return folder.path || 'Root';
+    },
   },
   watch: {
     refreshFlag() {
-      this.fetchFiles();
+      this.fetchFoldersAndFiles();
+    },
+    currentFolderId() {
+      this.fetchFoldersAndFiles();
     },
   },
   created() {
-    this.fetchFiles();
+    this.fetchFoldersAndFiles();
+  },
+  mounted() {
+    document.addEventListener('click', this.handleClickOutside);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside);
   },
 };
 </script>
@@ -119,7 +208,7 @@ export default {
   padding: 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   position: absolute;
-  top: 10%;
+  top: 13%;
   width: 90%; /* Reduced width to fit within viewport */
   height: 90%; /* Maximum width to avoid excessive size */
   max-width: 80%; /* Maximum width to avoid excessive size */
@@ -140,10 +229,15 @@ export default {
   border-bottom: 1px solid #ddd;
 }
 
+/* Styling for headers */
 .file-table th {
-  color: #666;
   font-weight: bold;
 }
+
+/* .folder-row,
+.file-row {
+  border-radius: 5px;
+} */
 
 .actions {
   position: relative;
@@ -203,4 +297,23 @@ export default {
   color: red;
   margin-top: 10px;
 }
+
+.back-button {
+  background-color: #d9d9d9; /* Grey background */
+  color: black; /* Change text color to black for better contrast */
+  padding: 10px;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  border: none;
+  margin-bottom: 20px;
+  width: 100%;
+  text-align: center;
+  padding-left: 20px;
+}
+
+.back-button:hover {
+  background-color: #b3b3b3; /* Darker grey for hover effect */
+}
+
 </style>
